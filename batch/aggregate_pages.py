@@ -36,7 +36,7 @@ def get_distinct_viewed_pages(pages_df, days=7):
         return [x]
 
     def merge_value(acc, x):
-        return acc + [x] if x not in acc else acc
+        return acc if x in acc else acc + [x]
 
     def merge_combiners(acc1, acc2):
         return list(set(acc1 + acc2))
