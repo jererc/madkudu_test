@@ -31,10 +31,15 @@ def get_behavioral_profile(user_id):
     rt_pages_viewed_count = rt_cur.count()
 
     # Aggregated data
-    agg_cur = agg_pages_col.find({
+    agg_data = agg_pages_col.find_one({
             'user_id': user_id,
-            })
-    agg_pages_viewed_count = agg_cur.count()
+            }, sort=[('timestamp', -1)])
+    if agg_data:
+        agg_pages_viewed_count = agg_data['pages_viewed_count']
+    else:
+        agg_pages_viewed_count = 0
+
+
 
     res = {
         'user_id': user_id,
