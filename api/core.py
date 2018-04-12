@@ -16,7 +16,7 @@ def insert_page_view_event(user_id, name, timestamp):
     }
     return pages_col.insert(doc)
 
-# TODO: implement!
+# TODO: implement missing stats
 def get_behavioral_profile(user_id):
     today = get_day(datetime.utcnow())
 
@@ -28,23 +28,23 @@ def get_behavioral_profile(user_id):
             'user_id': user_id,
             'timestamp': {'$gte': today},
             })
-    rt_pages_viewed_count = rt_cur.count()
+    rt_distinct_viewed_pages = list(set([d['name'] for d in rt_cur]))
 
     # Aggregated data
     agg_data = agg_pages_col.find_one({
             'user_id': user_id,
             }, sort=[('timestamp', -1)])
     if agg_data:
-        agg_pages_viewed_count = agg_data['pages_viewed_count']
+        agg_distinct_viewed_pages = agg_data['distinct_viewed_pages']
     else:
-        agg_pages_viewed_count = 0
+        agg_distinct_viewed_pages = []
 
-
+    distinct_viewed_pages = list(set(
+            rt_distinct_viewed_pages + agg_distinct_viewed_pages))
 
     res = {
         'user_id': user_id,
-        'number_pages_viewed_in_the_last_7_days': \
-            rt_pages_viewed_count + agg_pages_viewed_count,
+        'number_pages_viewed_in_the_last_7_days': len(distinct_viewed_pages),
         # 'time_spent_on_site_in_last_7_days': 18,
         # 'number_of_days_active_in_last_7_days': 3,
         # 'most_viewed_page_in_last_7_days': 'Blog: better B2B customer experience',
