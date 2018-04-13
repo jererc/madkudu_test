@@ -58,11 +58,11 @@ def get_sessions_time(timestamps, page_time):
 
     def iter_times():
         sorted_timestamps = sorted(timestamps)
-        last_ts = sorted_timestamps[-1]
+        last_index = len(sorted_timestamps) - 1
         begin = sorted_timestamps[0]
         end = begin + page_time
 
-        for ts in sorted_timestamps:
+        for index, ts in enumerate(sorted_timestamps):
             if ts < end:
                 end = ts + page_time
             else:
@@ -70,7 +70,7 @@ def get_sessions_time(timestamps, page_time):
                 begin = ts
                 end = ts + page_time
 
-            if ts == last_ts:
+            if index == last_index:
                 yield end - begin
 
     if not timestamps:

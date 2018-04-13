@@ -73,6 +73,11 @@ class TimeSpentSessionsTestCase(unittest.TestCase):
         res = module.get_sessions_time(timestamps, page_time=30)
         self.assertEqual(res, 33)
 
+    def test_last_ts(self):
+        timestamps = [100, 101, 102, 103, 103, 103]
+        res = module.get_sessions_time(timestamps, page_time=30)
+        self.assertEqual(res, 33)
+
 
 class TimeSpentTestCase(BaseSparkTestCase):
 
