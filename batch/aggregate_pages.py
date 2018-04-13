@@ -79,17 +79,17 @@ def get_sessions_time(timestamps, page_time):
 
 def get_time_spent(users_rdd, page_time=30):
     """Iterate over the sorted timestamps by user_id,
-    and find sessions of page_time seconds.
+    and find sessions using page_time seconds.
     """
 
     def create_combiner(x):
         return [x]
 
     def merge_value(acc, x):
-        return acc if x in acc else acc + [x]
+        return acc + [x]
 
     def merge_combiners(acc1, acc2):
-        return list(set(acc1 + acc2))
+        return acc1 + acc2
 
     return (users_rdd
         .map(lambda x: (x['user_id'], get_ts(x['timestamp'])))
