@@ -1,4 +1,5 @@
 from datetime import datetime
+import calendar
 import logging
 
 from dateutil import parser as date_parser
@@ -33,3 +34,6 @@ def parse_ts(ts):
 
 def get_day(date):
     return datetime(date.year, date.month, date.day)
+
+def get_ts(date):
+    return calendar.timegm(date.timetuple())
