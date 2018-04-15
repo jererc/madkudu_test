@@ -3,13 +3,12 @@ from datetime import datetime
 import calendar
 import logging
 
-from pprint import pprint
-
 from dateutil.relativedelta import relativedelta
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import (StructType, StructField,
         StringType, IntegerType, TimestampType, ArrayType)
+from pyspark.rdd import portable_hash
 
 
 MONGO_HOST = 'localhost'
@@ -31,7 +30,7 @@ def get_day(date):
 def get_ts(date):
     return calendar.timegm(date.timetuple())
 
-def get_distinct_viewed_pages(users_rdd):
+def get_distinct_viewed_pages(pages_rdd):
     """Get the distinct page names by user_id
     so that we can easily merge with real time data.
     """
@@ -45,7 +44,7 @@ def get_distinct_viewed_pages(users_rdd):
     def merge_combiners(acc1, acc2):
         return list(set(acc1 + acc2))
 
-    return (users_rdd
+    return (pages_rdd
         .map(lambda x: (x['user_id'], x['name']))
         .combineByKey(
             create_combiner,
@@ -77,7 +76,7 @@ def get_sessions_time(timestamps, page_time):
         return 0
     return sum(iter_times())
 
-def get_time_spent(users_rdd, page_time=30):
+def get_time_spent(pages_rdd, page_time=10):
     """Iterate over the sorted timestamps by user_id,
     and find sessions using page_time seconds.
     """
@@ -86,15 +85,22 @@ def get_time_spent(users_rdd, page_time=30):
         return [x]
 
     def merge_value(acc, x):
-        return acc + [x]
+        return acc if x in acc else acc + [x]
 
     def merge_combiners(acc1, acc2):
-        return acc1 + acc2
+        return list(set(acc1 + acc2))
 
-    return (users_rdd
+    partitions_count = 200  # we need more info on the input dataset (e.g.: maximum users count) in order to define this
+    return (pages_rdd
         .map(lambda x: (x['user_id'], get_ts(x['timestamp'])))
-        # WARNING: not good, won't scale and we could get loads of events per user_id...
-        # We could sort within user_ids partitions using repartitionAndSortWithinPartitions()
+        .map(lambda (user_id, ts): ((user_id, ts), ts))
+        # Repartition by user_id hash and sort by the composite key (user_id, ts) within each partition
+        .repartitionAndSortWithinPartitions(
+                numPartitions=partitions_count,
+                partitionFunc=lambda x: portable_hash(x[0]) % partitions_count,
+                ascending=True)
+        .map(lambda ((user_id, ts2), ts): (user_id, ts))
+        # Group and deduplicate sorted timestamps by user_id (max: 7 * 24 * 3600 integers per user_id)
         .combineByKey(
             create_combiner,
             merge_value,
@@ -130,13 +136,13 @@ def prepare_stats(user_id, data):
 def process_stats(spark, pages_df, last_days=7):
     today = get_day(datetime.utcnow())
     begin = today + relativedelta(days=-last_days)
-    users_rdd = (pages_df
+    pages_rdd = (pages_df
         .rdd
         .filter(lambda x: begin <= x['timestamp'] < today)
     )
 
-    distinct_viewed_pages_rdd = get_distinct_viewed_pages(users_rdd)
-    time_spent_rdd = get_time_spent(users_rdd, page_time=PAGE_TIME)
+    distinct_viewed_pages_rdd = get_distinct_viewed_pages(pages_rdd)
+    time_spent_rdd = get_time_spent(pages_rdd, page_time=PAGE_TIME)
     stats_rdd = (distinct_viewed_pages_rdd
         .leftOuterJoin(time_spent_rdd)
         .map(lambda (user_id, x): prepare_stats(user_id, x))

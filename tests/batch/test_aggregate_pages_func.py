@@ -81,6 +81,35 @@ class TimeSpentSessionsTestCase(unittest.TestCase):
 
 class TimeSpentTestCase(BaseSparkTestCase):
 
+    def test_sort(self):
+        today = module.get_day(datetime.utcnow())
+        data = [
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-3, seconds=6, microseconds=789)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-3, microseconds=333)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-3, seconds=2, microseconds=111)},
+
+            {'user_id': '001', 'timestamp': today + relativedelta(days=-3, seconds=3)},
+            {'user_id': '001', 'timestamp': today + relativedelta(days=-3, seconds=5, microseconds=999)},
+            {'user_id': '001', 'timestamp': today + relativedelta(days=-3)},
+
+            {'user_id': '002', 'timestamp': today + relativedelta(days=-3)},
+            {'user_id': '002', 'timestamp': today + relativedelta(days=-3, seconds=7)},
+            {'user_id': '002', 'timestamp': today + relativedelta(days=-3, seconds=6)},
+        ]
+        rdd = self.sc.parallelize(data)
+        schema = StructType([
+            StructField('user_id', StringType()),
+            StructField('timestamp', TimestampType()),
+        ])
+        df = self.spark.createDataFrame(rdd, schema)
+
+        res = module.get_time_spent(rdd, page_time=10)
+
+        partitions_data = res.glom().collect()
+        self.assertTrue([('000', 16)] in partitions_data)
+        self.assertTrue([('001', 15)] in partitions_data)
+        self.assertTrue([('002', 17)] in partitions_data)
+
     def test_transformation(self):
         today = module.get_day(datetime.utcnow())
         data = [
