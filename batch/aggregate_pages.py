@@ -53,24 +53,21 @@ def get_distinct_viewed_pages(pages_rdd):
         )
     )
 
-def get_sessions_time(timestamps, page_time):
+def get_sessions_time(timestamps, page_time, sort_ts=False):
 
     def iter_times():
-        sorted_timestamps = sorted(timestamps)
-        last_index = len(sorted_timestamps) - 1
+        sorted_timestamps = sorted(timestamps) \
+                if sort_ts else timestamps
         begin = sorted_timestamps[0]
         end = begin + page_time
-
-        for index, ts in enumerate(sorted_timestamps):
+        for ts in sorted_timestamps:
             if ts < end:
                 end = ts + page_time
             else:
                 yield end - begin
                 begin = ts
                 end = ts + page_time
-
-            if index == last_index:
-                yield end - begin
+        yield end - begin
 
     if not timestamps:
         return 0
@@ -78,7 +75,7 @@ def get_sessions_time(timestamps, page_time):
 
 def get_time_spent(pages_rdd, page_time=10):
     """Iterate over the sorted timestamps by user_id,
-    and find sessions using page_time seconds.
+    and find sessions using page_time.
     """
 
     def create_combiner(x):
@@ -106,7 +103,8 @@ def get_time_spent(pages_rdd, page_time=10):
             merge_value,
             merge_combiners,
         )
-        .mapValues(lambda x: get_sessions_time(x, page_time=page_time))
+        .mapValues(lambda x: get_sessions_time(x,
+                page_time=page_time, sort_ts=False))
     )
 
 def save(spark, stats_rdd):

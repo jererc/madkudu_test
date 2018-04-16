@@ -47,25 +47,22 @@ def _get_rt_distinct_viewed_pages(pages_col, request,
     return reduce(lambda x, y: list(set(x + y)),
             list(iter_values()))
 
-# TODO: use single time spent algorithms in batch amd real time
-def get_sessions_time(timestamps, page_time):
+# TODO: use a single time spent algorithm in batch and real time
+def get_sessions_time(timestamps, page_time, sort_ts=False):
 
     def iter_times():
-        sorted_timestamps = sorted(timestamps)
-        last_index = len(sorted_timestamps) - 1
+        sorted_timestamps = sorted(timestamps) \
+                if sort_ts else timestamps
         begin = sorted_timestamps[0]
         end = begin + page_time
-
-        for index, ts in enumerate(sorted_timestamps):
+        for ts in sorted_timestamps:
             if ts < end:
                 end = ts + page_time
             else:
                 yield end - begin
                 begin = ts
                 end = ts + page_time
-
-            if index == last_index:
-                yield end - begin
+        yield end - begin
 
     if not timestamps:
         return 0
@@ -81,7 +78,8 @@ def _get_rt_time_spent(pages_col, request,
 
     timestamps = reduce(lambda x, y: x + y,
             list(iter_values()))
-    return get_sessions_time(timestamps, page_time=PAGE_TIME)
+    return get_sessions_time(timestamps,
+            page_time=PAGE_TIME, sort_ts=True)
 
 # TODO: implement missing stats
 def get_behavioral_profile(user_id):
