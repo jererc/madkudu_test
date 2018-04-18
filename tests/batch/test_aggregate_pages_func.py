@@ -97,12 +97,6 @@ class TimeSpentTestCase(BaseSparkTestCase):
             {'user_id': '002', 'timestamp': today + relativedelta(days=-3, seconds=6)},
         ]
         rdd = self.sc.parallelize(data)
-        schema = StructType([
-            StructField('user_id', StringType()),
-            StructField('timestamp', TimestampType()),
-        ])
-        df = self.spark.createDataFrame(rdd, schema)
-
         res = module.get_time_spent(rdd, page_time=10)
 
         partitions_data = res.glom().collect()
@@ -110,7 +104,35 @@ class TimeSpentTestCase(BaseSparkTestCase):
         self.assertTrue([('001', 15)] in partitions_data)
         self.assertTrue([('002', 17)] in partitions_data)
 
-    def test_transformation(self):
+
+class DaysActiveTestCase(BaseSparkTestCase):
+
+    def test_sort(self):
+        today = module.get_day(datetime.utcnow())
+        data = [
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-6)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-6, seconds=41)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-2)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-2, seconds=32)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-2, seconds=47)},
+            {'user_id': '000', 'timestamp': today + relativedelta(days=-1)},
+        ]
+        rdd = self.sc.parallelize(data)
+        res = module.get_days_active(rdd)
+
+        rows = res.collect()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], '000')
+        self.assertEqual(sorted(rows[0][1]), [
+                today + relativedelta(days=-6),
+                today + relativedelta(days=-2),
+                today + relativedelta(days=-1),
+        ])
+
+
+class StatsTestCase(BaseSparkTestCase):
+
+    def test_stats(self):
         today = module.get_day(datetime.utcnow())
         data = [
             {
@@ -131,17 +153,17 @@ class TimeSpentTestCase(BaseSparkTestCase):
             {
                 'user_id': '456',
                 'name': 'page1',
-                'timestamp': today + relativedelta(days=-3),
+                'timestamp': today + relativedelta(days=-4),
             },
             {
                 'user_id': '456',
                 'name': 'page2',
-                'timestamp': today + relativedelta(days=-3, seconds=2),
+                'timestamp': today + relativedelta(days=-4, seconds=2),
             },
             {
                 'user_id': '456',
                 'name': 'page3',
-                'timestamp': today + relativedelta(days=-1),
+                'timestamp': today + relativedelta(days=-2),
             },
         ]
         rdd = self.sc.parallelize(data)
@@ -160,8 +182,16 @@ class TimeSpentTestCase(BaseSparkTestCase):
 
         self.assertEqual(rows[0]['user_id'], '123')
         self.assertEqual(rows[0]['time_spent'], 27)
+        self.assertEqual(rows[0]['days_active'], [
+                today + relativedelta(days=-3),
+                today + relativedelta(days=-1),
+        ])
         self.assertEqual(rows[1]['user_id'], '456')
         self.assertEqual(rows[1]['time_spent'], 22)
+        self.assertEqual(rows[1]['days_active'], [
+                today + relativedelta(days=-4),
+                today + relativedelta(days=-2),
+        ])
 
 
 if __name__ == '__main__':

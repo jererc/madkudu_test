@@ -81,6 +81,17 @@ def _get_rt_time_spent(pages_col, request,
     return get_sessions_time(timestamps,
             page_time=PAGE_TIME, sort_ts=True)
 
+def _get_rt_days_active(pages_col, request,
+        per_page=100):
+
+    def iter_values():
+        for docs in _iter_rt_paginated_docs(pages_col,
+                request, per_page=per_page):
+            yield list(set([get_day(d['timestamp']) for d in docs]))
+
+    return reduce(lambda x, y: list(set(x + y)),
+            list(iter_values()))
+
 # TODO: implement missing stats
 def get_behavioral_profile(user_id):
     today = get_day(datetime.utcnow())
@@ -96,6 +107,7 @@ def get_behavioral_profile(user_id):
     rt_distinct_viewed_pages = _get_rt_distinct_viewed_pages(
             pages_col, rt_request)
     rt_time_spent = _get_rt_time_spent(pages_col, rt_request)
+    rt_days_active = _get_rt_days_active(pages_col, rt_request)
 
     # Aggregated data
     agg_data = agg_pages_col.find_one({
@@ -104,20 +116,23 @@ def get_behavioral_profile(user_id):
     if agg_data:
         agg_distinct_viewed_pages = agg_data['distinct_viewed_pages']
         agg_time_spent = agg_data['time_spent']
+        agg_days_active = agg_data['days_active']
     else:
         agg_distinct_viewed_pages = []
         agg_time_spent = 0
+        agg_days_active = []
 
     # Merge
     distinct_viewed_pages = list(set(
             rt_distinct_viewed_pages + agg_distinct_viewed_pages))
     time_spent = rt_time_spent + agg_time_spent
+    days_active = list(set(rt_days_active + agg_days_active))
 
     res = {
         'user_id': user_id,
         'number_pages_viewed_in_the_last_7_days': len(distinct_viewed_pages),
         'time_spent_on_site_in_last_7_days': time_spent,
-        # 'number_of_days_active_in_last_7_days': 3,
+        'number_of_days_active_in_last_7_days': len(days_active),
         # 'most_viewed_page_in_last_7_days': 'Blog: better B2B customer experience',
     }
     return res

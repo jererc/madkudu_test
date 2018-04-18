@@ -107,11 +107,35 @@ def get_time_spent(pages_rdd, page_time=10):
                 page_time=page_time, sort_ts=False))
     )
 
+def get_days_active(pages_rdd):
+
+    def create_combiner(x):
+        return [x]
+
+    def merge_value(acc, x):
+        return acc + [x]
+
+    def merge_combiners(acc1, acc2):
+        return acc1 + acc2
+
+    return (pages_rdd
+        # Divide timestamps by a day's number of seconds
+        .map(lambda x: (x['user_id'], int(get_ts(x['timestamp']) / 86400)))
+        .distinct()
+        .mapValues(lambda x: datetime.utcfromtimestamp(x * 86400))
+        .combineByKey(
+            create_combiner,
+            merge_value,
+            merge_combiners,
+        )
+    )
+
 def save(spark, stats_rdd):
     schema = StructType([
         StructField('user_id', StringType()),
         StructField('time_spent', IntegerType()),
         StructField('distinct_viewed_pages', ArrayType(StringType())),
+        StructField('days_active', ArrayType(TimestampType())),
         StructField('timestamp', TimestampType()),
     ])
     df = spark.createDataFrame(stats_rdd, schema)
@@ -128,6 +152,7 @@ def prepare_stats(user_id, data):
         'user_id': user_id,
         'distinct_viewed_pages': data[0],
         'time_spent': data[1],
+        'days_active': data[2],
         'timestamp': datetime.utcnow(),
     }
 
@@ -141,8 +166,11 @@ def process_stats(spark, pages_df, last_days=7):
 
     distinct_viewed_pages_rdd = get_distinct_viewed_pages(pages_rdd)
     time_spent_rdd = get_time_spent(pages_rdd, page_time=PAGE_TIME)
+    days_active_rdd = get_days_active(pages_rdd)
     stats_rdd = (distinct_viewed_pages_rdd
-        .leftOuterJoin(time_spent_rdd)
+        .join(time_spent_rdd)
+        .join(days_active_rdd)
+        .mapValues(lambda x: (x[0][0], x[0][1], x[1]))
         .map(lambda (user_id, x): prepare_stats(user_id, x))
     )
 

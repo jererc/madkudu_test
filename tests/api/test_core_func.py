@@ -44,40 +44,41 @@ class BaseMongoTestCase(unittest.TestCase):
 class BehavioralProfileTestCase(BaseMongoTestCase):
 
     def test_rt_distinct_page_names(self):
+        today = core.get_day(datetime.utcnow())
         docs = [
             {
                 'user_id': '123',
                 'name': 'page1',
-                'timestamp': datetime(2018, 4, 12, 0, 0, 0),
+                'timestamp': today + relativedelta(seconds=1),
+
             },
             {
                 'user_id': '123',
                 'name': 'page2',
-                'timestamp': datetime(2018, 4, 12, 0, 0, 3),
+                'timestamp': today + relativedelta(seconds=4),
             },
             {
                 'user_id': '123',
                 'name': 'page1',
-                'timestamp': datetime(2018, 4, 12, 0, 2, 0),
+                'timestamp': today + relativedelta(seconds=18),
             },
             {
                 'user_id': '123',
                 'name': 'page1',
-                'timestamp': datetime(2018, 4, 12, 0, 3, 0),
+                'timestamp': today + relativedelta(seconds=23),
             },
         ]
         self.db['pages'].insert_many(docs)
 
-        with patch.object(core, 'get_day') as mock_get_day, \
-                patch.object(core, 'get_mongo_collection') as mock_get_mongo_collection:
-            mock_get_day.return_value = datetime(2018, 4, 12)
+        with patch.object(core, 'get_mongo_collection') as mock_get_mongo_collection:
             mock_get_mongo_collection.side_effect = self.side_get_mongo_collection
 
             res = core.get_behavioral_profile('123')
 
         self.assertEqual(res['user_id'], '123')
         self.assertEqual(res['number_pages_viewed_in_the_last_7_days'], 2)
-        self.assertEqual(res['time_spent_on_site_in_last_7_days'], 33)
+        self.assertEqual(res['time_spent_on_site_in_last_7_days'], 28)
+        self.assertEqual(res['number_of_days_active_in_last_7_days'], 1)
 
     def test_rt_limit(self):
 
