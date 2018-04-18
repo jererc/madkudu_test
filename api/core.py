@@ -1,5 +1,6 @@
 from datetime import datetime
 from math import ceil
+from copy import deepcopy
 import logging
 
 from utils import get_mongo_collection, parse_ts, get_day, get_ts
@@ -92,24 +93,23 @@ def _get_rt_days_active(pages_col, request,
     return reduce(lambda x, y: list(set(x + y)),
             list(iter_values()))
 
-# TODO: implement missing stats
-def get_behavioral_profile(user_id):
-    today = get_day(datetime.utcnow())
+def _get_rt_viewed_pages_counts(pages_col, request,
+        per_page=100):
 
-    pages_col = get_mongo_collection('pages')
+    def iter_docs():
+        for docs in _iter_rt_paginated_docs(pages_col,
+                request, per_page=per_page):
+            for doc in docs:
+                yield doc
+
+    counts = {}
+    for doc in iter_docs():
+        counts.setdefault(doc['name'], 0)
+        counts[doc['name']] += 1
+    return counts
+
+def _merge_aggregated_data(user_id, rt_data):
     agg_pages_col = get_mongo_collection('aggregated_pages')
-
-    # Real time data
-    rt_request = {
-        'user_id': user_id,
-        'timestamp': {'$gte': today},
-    }
-    rt_distinct_viewed_pages = _get_rt_distinct_viewed_pages(
-            pages_col, rt_request)
-    rt_time_spent = _get_rt_time_spent(pages_col, rt_request)
-    rt_days_active = _get_rt_days_active(pages_col, rt_request)
-
-    # Aggregated data
     agg_data = agg_pages_col.find_one({
             'user_id': user_id,
             }, sort=[('timestamp', -1)])
@@ -117,22 +117,48 @@ def get_behavioral_profile(user_id):
         agg_distinct_viewed_pages = agg_data['distinct_viewed_pages']
         agg_time_spent = agg_data['time_spent']
         agg_days_active = agg_data['days_active']
+        agg_viewed_pages_counts = agg_data['viewed_pages_counts']
     else:
         agg_distinct_viewed_pages = []
         agg_time_spent = 0
         agg_days_active = []
+        agg_viewed_pages_counts = {}
 
-    # Merge
+    # Merge real time and aggregated data
     distinct_viewed_pages = list(set(
-            rt_distinct_viewed_pages + agg_distinct_viewed_pages))
-    time_spent = rt_time_spent + agg_time_spent
-    days_active = list(set(rt_days_active + agg_days_active))
+            rt_data['distinct_viewed_pages'] + agg_distinct_viewed_pages))
+    time_spent = rt_data['time_spent'] + agg_time_spent
+    days_active = list(set(rt_data['days_active'] + agg_days_active))
 
-    res = {
+    viewed_pages_counts = deepcopy(rt_data['viewed_pages_counts'])
+    for name, count in agg_viewed_pages_counts.iteritems():
+        viewed_pages_counts.setdefault(name, 0)
+        viewed_pages_counts[name] += count
+    most_viewed_page = sorted([(v, k)
+            for k, v in viewed_pages_counts.items()])[-1][1]
+
+    return {
         'user_id': user_id,
         'number_pages_viewed_in_the_last_7_days': len(distinct_viewed_pages),
         'time_spent_on_site_in_last_7_days': time_spent,
         'number_of_days_active_in_last_7_days': len(days_active),
-        # 'most_viewed_page_in_last_7_days': 'Blog: better B2B customer experience',
+        'most_viewed_page_in_last_7_days': most_viewed_page,
     }
-    return res
+
+def get_behavioral_profile(user_id):
+    pages_col = get_mongo_collection('pages')
+    rt_request = {
+        'user_id': user_id,
+        'timestamp': {'$gte': get_day(datetime.utcnow())},
+    }
+    rt_data = {
+        'distinct_viewed_pages': _get_rt_distinct_viewed_pages(
+                pages_col, rt_request),
+        'time_spent': _get_rt_time_spent(
+                pages_col, rt_request),
+        'days_active': _get_rt_days_active(
+                pages_col, rt_request),
+        'viewed_pages_counts': _get_rt_viewed_pages_counts(
+                pages_col, rt_request),
+    }
+    return _merge_aggregated_data(user_id, rt_data)

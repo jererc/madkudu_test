@@ -130,6 +130,35 @@ class DaysActiveTestCase(BaseSparkTestCase):
         ])
 
 
+class ViewedPagesCountsTestCase(BaseSparkTestCase):
+
+    def test_sort(self):
+        data = [
+            {'user_id': '000', 'name': 'page1'},
+            {'user_id': '000', 'name': 'page2'},
+            {'user_id': '000', 'name': 'page3'},
+            {'user_id': '000', 'name': 'page1'},
+            {'user_id': '000', 'name': 'page1'},
+            {'user_id': '000', 'name': 'page3'},
+            {'user_id': '000', 'name': 'page3'},
+            {'user_id': '000', 'name': 'page3'},
+            {'user_id': '000', 'name': 'page2'},
+
+            {'user_id': '001', 'name': 'page1'},
+            {'user_id': '001', 'name': 'page3'},
+            {'user_id': '001', 'name': 'page1'},
+        ]
+        rdd = self.sc.parallelize(data)
+        res = module.get_viewed_pages_counts(rdd)
+
+        rows = sorted(res.collect())
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0][0], '000')
+        self.assertEqual(rows[0][1], {'page1': 3, 'page2': 2, 'page3': 4})
+        self.assertEqual(rows[1][0], '001')
+        self.assertEqual(rows[1][1], {'page1': 2, 'page3': 1})
+
+
 class StatsTestCase(BaseSparkTestCase):
 
     def test_stats(self):
@@ -147,22 +176,22 @@ class StatsTestCase(BaseSparkTestCase):
             },
             {
                 'user_id': '123',
-                'name': 'page3',
+                'name': 'page1',
                 'timestamp': today + relativedelta(days=-1),
             },
             {
                 'user_id': '456',
-                'name': 'page1',
+                'name': 'page2',
                 'timestamp': today + relativedelta(days=-4),
             },
             {
                 'user_id': '456',
-                'name': 'page2',
+                'name': 'page1',
                 'timestamp': today + relativedelta(days=-4, seconds=2),
             },
             {
                 'user_id': '456',
-                'name': 'page3',
+                'name': 'page2',
                 'timestamp': today + relativedelta(days=-2),
             },
         ]
@@ -186,12 +215,21 @@ class StatsTestCase(BaseSparkTestCase):
                 today + relativedelta(days=-3),
                 today + relativedelta(days=-1),
         ])
+        self.assertEqual(rows[0]['viewed_pages_counts'], {
+            'page1': 2,
+            'page2': 1,
+        })
+
         self.assertEqual(rows[1]['user_id'], '456')
         self.assertEqual(rows[1]['time_spent'], 22)
         self.assertEqual(rows[1]['days_active'], [
                 today + relativedelta(days=-4),
                 today + relativedelta(days=-2),
         ])
+        self.assertEqual(rows[1]['viewed_pages_counts'], {
+            'page1': 1,
+            'page2': 2,
+        })
 
 
 if __name__ == '__main__':

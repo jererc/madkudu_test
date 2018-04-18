@@ -7,7 +7,7 @@ from dateutil.relativedelta import relativedelta
 
 from pyspark.sql import SparkSession
 from pyspark.sql.types import (StructType, StructField,
-        StringType, IntegerType, TimestampType, ArrayType)
+        StringType, IntegerType, TimestampType, ArrayType, MapType)
 from pyspark.rdd import portable_hash
 
 
@@ -130,12 +130,37 @@ def get_days_active(pages_rdd):
         )
     )
 
+def get_viewed_pages_counts(pages_rdd):
+
+    def create_combiner(x):
+        return [x]
+
+    def merge_value(acc, x):
+        return acc + [x]
+
+    def merge_combiners(acc1, acc2):
+        return acc1 + acc2
+
+    return (pages_rdd
+        .map(lambda x: ((x['user_id'], x['name']), 1))
+        .reduceByKey(lambda x, y: x + y)
+        .map(lambda ((user_id, name), count): (user_id, (name, count)))
+        .combineByKey(
+            create_combiner,
+            merge_value,
+            merge_combiners,
+        )
+        .mapValues(dict)
+    )
+
 def save(spark, stats_rdd):
     schema = StructType([
         StructField('user_id', StringType()),
         StructField('time_spent', IntegerType()),
         StructField('distinct_viewed_pages', ArrayType(StringType())),
         StructField('days_active', ArrayType(TimestampType())),
+        StructField('viewed_pages_counts', MapType(
+                StringType(), IntegerType())),
         StructField('timestamp', TimestampType()),
     ])
     df = spark.createDataFrame(stats_rdd, schema)
@@ -153,6 +178,7 @@ def prepare_stats(user_id, data):
         'distinct_viewed_pages': data[0],
         'time_spent': data[1],
         'days_active': data[2],
+        'viewed_pages_counts': data[3],
         'timestamp': datetime.utcnow(),
     }
 
@@ -167,10 +193,12 @@ def process_stats(spark, pages_df, last_days=7):
     distinct_viewed_pages_rdd = get_distinct_viewed_pages(pages_rdd)
     time_spent_rdd = get_time_spent(pages_rdd, page_time=PAGE_TIME)
     days_active_rdd = get_days_active(pages_rdd)
+    viewed_pages_counts_rdd = get_viewed_pages_counts(pages_rdd)
     stats_rdd = (distinct_viewed_pages_rdd
         .join(time_spent_rdd)
         .join(days_active_rdd)
-        .mapValues(lambda x: (x[0][0], x[0][1], x[1]))
+        .join(viewed_pages_counts_rdd)
+        .mapValues(lambda (((d1, d2), d3), d4): (d1, d2, d3, d4))
         .map(lambda (user_id, x): prepare_stats(user_id, x))
     )
 
