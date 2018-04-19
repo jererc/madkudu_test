@@ -32,6 +32,7 @@ def _iter_rt_paginated_docs(pages_col, request,
                 sort=[('timestamp', 1)])
         return [d for d in cur]
 
+    # TODO: count once! (e.g.: at request creation time)
     total_docs = min(pages_col.find(request).count(),
             DOCS_COUNT_HARD_LIMIT)
     pages = int(ceil(total_docs / float(per_page)))
