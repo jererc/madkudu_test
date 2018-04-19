@@ -25,6 +25,7 @@ def _iter_rt_paginated_docs(pages_col, request,
         per_page=100):
 
     def get_page_docs(page):
+        # TODO: sort by insertion order (so we need an insertion timestamp)
         cur = pages_col.find(request,
                 skip=(page - 1) * per_page,
                 limit=per_page,

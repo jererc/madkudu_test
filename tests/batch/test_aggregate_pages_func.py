@@ -211,7 +211,7 @@ class StatsTestCase(BaseSparkTestCase):
 
         self.assertEqual(rows[0]['user_id'], '123')
         self.assertEqual(rows[0]['time_spent'], 27)
-        self.assertEqual(rows[0]['days_active'], [
+        self.assertEqual(sorted(rows[0]['days_active']), [
                 today + relativedelta(days=-3),
                 today + relativedelta(days=-1),
         ])
@@ -222,7 +222,7 @@ class StatsTestCase(BaseSparkTestCase):
 
         self.assertEqual(rows[1]['user_id'], '456')
         self.assertEqual(rows[1]['time_spent'], 22)
-        self.assertEqual(rows[1]['days_active'], [
+        self.assertEqual(sorted(rows[1]['days_active']), [
                 today + relativedelta(days=-4),
                 today + relativedelta(days=-2),
         ])
