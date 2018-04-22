@@ -55,28 +55,28 @@ class TimeSpentSessionsTestCase(unittest.TestCase):
 
     def test_none(self):
         timestamps = []
-        res = module.get_sessions_time(timestamps, page_time=30)
+        res = module.get_sessions_time(timestamps, page_time=10)
         self.assertEqual(res, 0)
 
     def test_single(self):
-        timestamps = [0]
-        res = module.get_sessions_time(timestamps, page_time=30)
-        self.assertEqual(res, 30)
+        timestamps = [100]
+        res = module.get_sessions_time(timestamps, page_time=10)
+        self.assertEqual(res, 10)
 
     def test1(self):
-        timestamps = [100, 120, 200, 300]
-        res = module.get_sessions_time(timestamps, page_time=30)
-        self.assertEqual(res, 110)
+        timestamps = [100, 104, 200, 300]
+        res = module.get_sessions_time(timestamps, page_time=10)
+        self.assertEqual(res, 34)
 
     def test2(self):
         timestamps = [100, 101, 102, 103]
-        res = module.get_sessions_time(timestamps, page_time=30)
-        self.assertEqual(res, 33)
+        res = module.get_sessions_time(timestamps, page_time=10)
+        self.assertEqual(res, 13)
 
     def test_last_ts(self):
         timestamps = [100, 101, 102, 103, 103, 103]
-        res = module.get_sessions_time(timestamps, page_time=30)
-        self.assertEqual(res, 33)
+        res = module.get_sessions_time(timestamps, page_time=10)
+        self.assertEqual(res, 13)
 
 
 class TimeSpentTestCase(BaseSparkTestCase):

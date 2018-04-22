@@ -7,7 +7,7 @@ from utils import get_mongo_collection, parse_ts, get_day, get_ts
 
 
 DOCS_COUNT_HARD_LIMIT = 1000000
-PAGE_TIME = 10  # session duration in seconds
+PAGE_TIME = 10  # maximum time spent per page in seconds
 
 logger = logging.getLogger(__name__)
 
@@ -56,20 +56,13 @@ def get_sessions_time(timestamps, page_time, sort_ts=False):
     def iter_times():
         sorted_timestamps = sorted(timestamps) \
                 if sort_ts else timestamps
-        begin = sorted_timestamps[0]
-        end = begin + page_time
-        for ts in sorted_timestamps:
-            if ts < end:
-                end = ts + page_time
-            else:
-                yield end - begin
-                begin = ts
-                end = ts + page_time
-        yield end - begin
+        for i, ts in enumerate(sorted_timestamps):
+            try:
+                yield min(page_time, sorted_timestamps[i + 1] - ts)
+            except IndexError:
+                yield page_time
 
-    if not timestamps:
-        return 0
-    return sum(iter_times())
+    return sum(iter_times()) if timestamps else 0
 
 def _get_rt_time_spent(pages_col, request,
         per_page=100):
